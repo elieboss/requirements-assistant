@@ -10,8 +10,15 @@ A small demo that helps an analyst turn a vague business request into **draft** 
 | `worker/` | Cloudflare Worker | Serves the app and handles `POST /api/analyze`; the only part that holds the AI key or calls Claude |
 | `worker/src/prompt.js` | The analysis instructions | The analyst method the AI follows, plus the exact output shape |
 | `worker/src/validate.js` | Citation check | Removes any citation or link that points at nothing, and flags the item |
+| `worker/src/testCasePrompt.js` | Optional test case step | Turns one approved acceptance criterion into a draft test case for an analyst to review |
 | `shared/` | Plain JavaScript | The fictional sample request, the sample results, and the sentence splitter |
 | `docs/` | Notes | The data shape and traceability chain |
+
+## Optional step: draft test case
+
+Approve an acceptance criterion, then click **Generate draft test case**. The Worker sends only that criterion, its requirement, its source sentences and any blocking questions to Claude, and returns a draft with preconditions, steps, expected results, fictional test data, and suggested edge cases and coverage gaps. The links back to the criterion, requirement and sentences are added by code, not by the AI. If the criterion is edited afterwards, the test case is flagged as out of date.
+
+This shows requirements supporting testing. It is not a test management tool: a real team would adapt the draft to its own templates, tools and process.
 
 ## Run it locally
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LinkChips, ReviewActions, SentenceChips, StatusBadge, WithTbd } from "./common.jsx";
+import TestCasePanel from "./TestCasePanel.jsx";
 import { criteriaForRequirement, questionsForRequirement, questionsForStakeholder } from "../lib/trace.js";
 
 function Card({ id, selected, linked, status, unsupported, onSelect, children }) {
@@ -94,8 +95,25 @@ export function QuestionCard({ item, results, ctx }) {
   );
 }
 
-export function CriterionCard({ item, ctx }) {
+export function CriterionCard({ item, results, ctx }) {
   const [editing, setEditing] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [tcError, setTcError] = useState("");
+  const testCase = results.testCases?.[item.id];
+
+  async function generate(e) {
+    e.stopPropagation();
+    setGenerating(true);
+    setTcError("");
+    try {
+      await ctx.generateTestCase(item.id);
+    } catch (err) {
+      setTcError(err.message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const [draft, setDraft] = useState({ given: item.given, when: item.when, then: item.then });
   const update = (changes) => ctx.updateItem("acceptanceCriteria", item.id, changes);
   const stop = (e) => e.stopPropagation();
@@ -141,9 +159,14 @@ export function CriterionCard({ item, ctx }) {
       />
       {item.status === "approved" && (
         <div className="next-step">
-          <button className="btn" disabled title="Added in Step 5">Generate draft test case (Step 5)</button>
+          <button className="btn" onClick={generate} disabled={generating}>
+            {generating ? "Drafting test case…" : testCase ? "Regenerate draft test case" : "Generate draft test case"}
+          </button>
+          <span className="hint"> Optional: shows how an approved criterion carries forward into testing.</span>
+          {tcError && <p className="notice">{tcError}</p>}
         </div>
       )}
+      {testCase && <TestCasePanel testCase={testCase} criterion={item} ctx={ctx} />}
     </Card>
   );
 }

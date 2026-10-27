@@ -148,3 +148,22 @@ button { font: inherit; }
 .citation-check.has-issues { color: var(--rejected); background: var(--rejected-bg); }
 .citation-check ul { margin: 6px 0 0; padding-left: 18px; }
 .unsupported { font-size: 0.85rem; color: var(--rejected); background: var(--rejected-bg); padding: 6px 10px; border-radius: 4px; margin: 10px 0 0; }
+
+/* Optional step: draft test case */
+.next-step .hint { margin: 0; }
+.test-case { margin-top: 12px; padding: 14px; border: 1px dashed var(--accent); border-radius: var(--radius); background: var(--bg); cursor: default; }
+.tc-note { font-size: 0.85rem; color: var(--draft); background: var(--draft-bg); padding: 8px 10px; border-radius: 4px; margin: 10px 0 0; }
+.tc-title { margin: 12px 0 2px; font-size: 1rem; }
+.test-case h5 { margin: 12px 0 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.test-case h6 { margin: 10px 0 2px; font-size: 0.85rem; }
+.test-case ul { margin: 0; padding-left: 18px; }
+.test-case li { margin: 2px 0; }
+.tc-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 20px; }
+.tc-columns > div { min-width: 0; }
+.table-scroll { overflow-x: auto; }
+.tc-steps { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.tc-steps th, .tc-steps td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.tc-steps th { font-size: 0.8rem; color: var(--muted); }
+.tc-steps td:first-child { font-variant-numeric: tabular-nums; color: var(--muted); }
+.tc-suggestions { margin-top: 12px; padding: 10px 12px; border-radius: 6px; background: var(--panel); border: 1px solid var(--border); }
+.tc-suggestions > .detail { margin: 0; }

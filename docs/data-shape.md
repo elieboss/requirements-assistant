@@ -22,6 +22,6 @@ Stakeholder (STK-n)             cites sentences; `inferred: true` when implied r
 | Stakeholder | `id`, `role`, `interest`, `inferred`, `sourceSentenceIds` |
 | Open question | `id`, `question`, `issue` (vague, missing, assumption, constraint), `sourceSentenceIds`, `relatedRequirementIds`, `askStakeholderIds` |
 | Acceptance criterion | `id`, `requirementId`, `given`, `when`, `then`, `sourceSentenceIds`, `dependsOnQuestionIds`, `status` |
-| Test case (Step 5) | `id`, `acceptanceCriterionId`, `title`, `preconditions`, `steps[{action, expected}]`, `testData`, `edgeCases`, `coverageGaps`, `sourceSentenceIds` |
+| Test case (Step 5) | `id`, `acceptanceCriterionId`, `requirementId`, `sourceSentenceIds`, `criterionSnapshot`, `title`, `objective`, `preconditions`, `testData`, `steps[{action, expected}]`, `edgeCases[{scenario, why}]`, `coverageGaps`, `assumptions`, `status` |
 
 Unknown values inside criteria are written as `[TBD per Q-n]` so a gap is never hidden behind a guessed number.

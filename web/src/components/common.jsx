@@ -52,7 +52,7 @@ export function StatusBadge({ status = "draft", edited }) {
   );
 }
 
-export function ReviewActions({ status, editing, onApprove, onReject, onReset, onEdit, onSave, onCancel }) {
+export function ReviewActions({ status, editing, canEdit = true, onApprove, onReject, onReset, onEdit, onSave, onCancel }) {
   const stop = (fn) => (e) => {
     e.stopPropagation();
     fn();
@@ -70,7 +70,7 @@ export function ReviewActions({ status, editing, onApprove, onReject, onReset, o
       {status === "draft" ? (
         <>
           <button className="btn btn-primary" onClick={stop(onApprove)}>Approve</button>
-          <button className="btn" onClick={stop(onEdit)}>Edit</button>
+          {canEdit && <button className="btn" onClick={stop(onEdit)}>Edit</button>}
           <button className="btn btn-quiet" onClick={stop(onReject)}>Reject</button>
         </>
       ) : (
