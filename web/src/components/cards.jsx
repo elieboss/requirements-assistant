@@ -2,11 +2,12 @@ import { useState } from "react";
 import { LinkChips, ReviewActions, SentenceChips, StatusBadge, WithTbd } from "./common.jsx";
 import { criteriaForRequirement, questionsForRequirement, questionsForStakeholder } from "../lib/trace.js";
 
-function Card({ id, selected, linked, status, onSelect, children }) {
+function Card({ id, selected, linked, status, unsupported, onSelect, children }) {
   const cls = ["card", selected && "is-selected", linked && "is-linked", status && `is-${status}`].filter(Boolean).join(" ");
   return (
     <article id={`card-${id}`} className={cls} onClick={() => onSelect(id)}>
       {children}
+      {unsupported && <p className="unsupported">Not traced: no valid source in the request. Verify before using.</p>}
     </article>
   );
 }
@@ -28,7 +29,7 @@ export function RequirementCard({ item, results, ctx }) {
   const update = (changes) => ctx.updateItem("requirements", item.id, changes);
 
   return (
-    <Card id={item.id} {...ctx.cardState(item)} status={item.status} onSelect={ctx.onSelect}>
+    <Card id={item.id} {...ctx.cardState(item)} status={item.status} unsupported={item.unsupported} onSelect={ctx.onSelect}>
       <CardHead id={item.id} tag={item.type}>
         <StatusBadge status={item.status} edited={item.edited} />
       </CardHead>
@@ -58,7 +59,7 @@ export function RequirementCard({ item, results, ctx }) {
 
 export function StakeholderCard({ item, results, ctx }) {
   return (
-    <Card id={item.id} {...ctx.cardState(item)} onSelect={ctx.onSelect}>
+    <Card id={item.id} {...ctx.cardState(item)} unsupported={item.unsupported} onSelect={ctx.onSelect}>
       <CardHead
         id={item.id}
         tag={item.inferred ? "inferred · confirm" : "named in request"}
@@ -80,7 +81,7 @@ export function QuestionCard({ item, results, ctx }) {
     .filter(Boolean)
     .join("; ");
   return (
-    <Card id={item.id} {...ctx.cardState(item)} onSelect={ctx.onSelect}>
+    <Card id={item.id} {...ctx.cardState(item)} unsupported={item.unsupported} onSelect={ctx.onSelect}>
       <CardHead id={item.id} tag={item.issue} />
       <p className="statement">{item.question}</p>
       {askRoles && <p className="detail">Ask: {askRoles}</p>}
@@ -100,7 +101,7 @@ export function CriterionCard({ item, ctx }) {
   const stop = (e) => e.stopPropagation();
 
   return (
-    <Card id={item.id} {...ctx.cardState(item)} status={item.status} onSelect={ctx.onSelect}>
+    <Card id={item.id} {...ctx.cardState(item)} status={item.status} unsupported={item.unsupported} onSelect={ctx.onSelect}>
       <CardHead id={item.id} tag="given / when / then" tagKind="gwt">
         <StatusBadge status={item.status} edited={item.edited} />
       </CardHead>

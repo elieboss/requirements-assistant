@@ -24,16 +24,33 @@ export default function ResultsPanel({ results, activeTab, setActiveTab, ctx }) 
 
   const tab = TABS.find((t) => t.key === activeTab);
   const sourceLabel = {
+    ai: "AI (Claude)",
     "sample-server": "pre-written sample results, served by the Worker",
+    "sample-fallback": "the pre-written sample results, because the AI was not available",
     "sample-offline": "the offline copy of the sample results (the server could not be reached)",
-    ai: "AI",
   }[results.generatedBy] ?? "pre-written sample results";
+  const check = results.citationCheck;
 
   return (
     <section className="panel results-panel">
       <div className="draft-banner" role="note">
         <strong>DRAFT — for analyst review.</strong> Generated from {sourceLabel}. Nothing here is final until an analyst approves it.
+        {results.fallbackReason && <span className="fallback-reason"> Reason: {results.fallbackReason}</span>}
       </div>
+
+      {check && (
+        <div className={`citation-check${check.issues.length ? " has-issues" : ""}`}>
+          {check.issues.length === 0
+            ? `Citation check passed: all ${check.itemCount} items cite sentences that exist in the request.`
+            : `Citation check: ${check.issues.length} problem(s) found and removed. Flagged items need extra review.`}
+          {check.issues.length > 0 && (
+            <details>
+              <summary>Show details</summary>
+              <ul>{check.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
+            </details>
+          )}
+        </div>
+      )}
 
       <p className="summary">{results.summary}</p>
 

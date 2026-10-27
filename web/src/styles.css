@@ -141,3 +141,10 @@ button { font: inherit; }
 .tbd { background: var(--draft-bg); color: var(--draft); padding: 0 3px; border-radius: 3px; }
 .warning { font-size: 0.85rem; color: var(--draft); margin: 8px 0 0; }
 .next-step { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+
+/* AI result checks */
+.fallback-reason { display: block; margin-top: 4px; }
+.citation-check { font-size: 0.85rem; color: var(--approved); background: var(--approved-bg); padding: 6px 10px; border-radius: 4px; margin: 10px 0 0; }
+.citation-check.has-issues { color: var(--rejected); background: var(--rejected-bg); }
+.citation-check ul { margin: 6px 0 0; padding-left: 18px; }
+.unsupported { font-size: 0.85rem; color: var(--rejected); background: var(--rejected-bg); padding: 6px 10px; border-radius: 4px; margin: 10px 0 0; }

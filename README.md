@@ -7,7 +7,9 @@ A small demo that helps an analyst turn a vague business request into **draft** 
 | Folder | What it is | Its job |
 |---|---|---|
 | `web/` | React app (Vite, plain CSS) | The screen: request on the left, draft analysis on the right, approve/edit/reject |
-| `worker/` | Cloudflare Worker | Serves the app and handles `POST /api/analyze`; the AI key will live here only |
+| `worker/` | Cloudflare Worker | Serves the app and handles `POST /api/analyze`; the only part that holds the AI key or calls Claude |
+| `worker/src/prompt.js` | The analysis instructions | The analyst method the AI follows, plus the exact output shape |
+| `worker/src/validate.js` | Citation check | Removes any citation or link that points at nothing, and flags the item |
 | `shared/` | Plain JavaScript | The fictional sample request, the sample results, and the sentence splitter |
 | `docs/` | Notes | The data shape and traceability chain |
 
@@ -26,9 +28,21 @@ npm --prefix web run dev
 
 If the Worker is not running, the sample request still works from an offline copy, and the page says so.
 
+### Connect the AI locally
+
+Create `worker/.dev.vars` (it is git-ignored, so the key never reaches GitHub):
+
+```
+ANTHROPIC_API_KEY=your-key-here
+```
+
+Restart the Worker. Without a key, the sample request returns the pre-written results, labelled as a fallback.
+
 ## Deploy
 
 ```bash
-npx --prefix worker wrangler login   # once
-npm --prefix worker run deploy       # builds the app, then deploys app + API as one Worker
+cd worker
+npx wrangler login                        # once
+npx wrangler secret put ANTHROPIC_API_KEY # paste the key when asked; stored by Cloudflare, not in code
+npm run deploy                            # builds the app, then deploys app + API as one Worker
 ```
