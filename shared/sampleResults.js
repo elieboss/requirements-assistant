@@ -9,6 +9,13 @@ export const sampleResults = {
     "Client Services wants customers alerted when their linked bank account is added, changed, or removed, " +
     "with an easy way to report unauthorized changes, a hold on large withdrawals to new accounts, and a compliance record of alerts.",
 
+  userStory: {
+    id: "STORY-1", status: "draft", sourceSentenceIds: ["S1", "S2", "S5"],
+    asA: "brokerage customer",
+    iWant: "to be alerted whenever the bank account linked to my account is added, changed, or removed",
+    soThat: "I can report a change I did not make before money is moved",
+  },
+
   requirements: [
     { id: "REQ-1", type: "functional", status: "draft", sourceSentenceIds: ["S2"],
       statement: "The system shall send the customer an alert whenever a linked bank account is added, changed, or removed." },

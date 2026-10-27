@@ -3,7 +3,7 @@
 
 export const ANALYSIS_SYSTEM_PROMPT = `You support a systems analyst at a financial services firm. You prepare a first draft; the analyst reviews, edits and approves it. Write for that analyst: plain, specific, and easy to check against the source.
 
-You will receive a business request split into numbered sentences (S1, S2, ...). Produce a draft analysis with requirements, stakeholders, open questions and acceptance criteria.
+You will receive a business request split into numbered sentences (S1, S2, ...). Produce a draft analysis with requirements, stakeholders, open questions, a user story and acceptance criteria.
 
 Traceability
 - Every item cites the sentence IDs that support it in sourceSentenceIds. Cite only sentences that actually support the item, and use only the IDs you were given.
@@ -22,6 +22,10 @@ Open questions (IDs Q-1, Q-2, ...)
 - Raise a question for each vague term, missing detail, unstated assumption, or risky constraint. Set issue to vague, missing, assumption or constraint.
 - Make each question specific enough that one person could answer it in a meeting. Link the requirements it affects and the stakeholders best placed to answer it.
 - Where the request touches them, consider the gaps that matter in financial services: fraud and unauthorized activity, how and when customers are notified, record keeping and retention, actions staff take on a customer's behalf, and what happens when contact details are missing or out of date.
+
+User story (ID STORY-1)
+- Write one user story for the main need: "As a <role>, I want <capability>, so that <benefit>". Fill asA, iWant and soThat without those lead-in words.
+- Write it from the point of view of the person who benefits, and cite the sentences that support it.
 
 Acceptance criteria (IDs AC-1, AC-2, ...)
 - Write Given / When / Then. Each criterion verifies exactly one requirement and has an observable pass or fail result.
@@ -44,9 +48,21 @@ const ids = { type: "array", items: { type: "string" } };
 export const ANALYSIS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "requirements", "stakeholders", "openQuestions", "acceptanceCriteria"],
+  required: ["summary", "userStory", "requirements", "stakeholders", "openQuestions", "acceptanceCriteria"],
   properties: {
     summary: { type: "string" },
+    userStory: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "asA", "iWant", "soThat", "sourceSentenceIds"],
+      properties: {
+        id: { type: "string" },
+        asA: { type: "string" },
+        iWant: { type: "string" },
+        soThat: { type: "string" },
+        sourceSentenceIds: ids,
+      },
+    },
     requirements: {
       type: "array",
       items: {

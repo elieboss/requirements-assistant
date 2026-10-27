@@ -1,18 +1,35 @@
 # Requirements Assistant
 
-A small demo that helps an analyst turn a vague business request into **draft** requirements, stakeholders, open questions and acceptance criteria. Every item is traced to the sentence in the request that supports it. All data is fictional, and all generated content is a draft for human review.
+A small demo that helps an analyst turn a vague business request into **draft** requirements, stakeholders, open questions, a user story and acceptance criteria, then review them in a fixed order before anything moves to testing. Every item is traced to the sentence in the request that supports it. All data is fictional, and all generated content is a draft for human review.
 
 ## Parts
 
 | Folder | What it is | Its job |
 |---|---|---|
-| `web/` | React app (Vite, plain CSS) | The screen: request on the left, draft analysis on the right, approve/edit/reject |
+| `web/` | React app (Vite, plain CSS) | The screen: request on the left, draft analysis on the right, reviewed stage by stage |
+| `web/src/lib/workflow.js` | Workflow rules | Stage order, what "done" means, what stays locked, the Definition of Ready |
 | `worker/` | Cloudflare Worker | Serves the app and handles `POST /api/analyze`; the only part that holds the AI key or calls Claude |
 | `worker/src/prompt.js` | The analysis instructions | The analyst method the AI follows, plus the exact output shape |
 | `worker/src/validate.js` | Citation check | Removes any citation or link that points at nothing, and flags the item |
 | `worker/src/testCasePrompt.js` | Optional test case step | Turns one approved acceptance criterion into a draft test case for an analyst to review |
 | `shared/` | Plain JavaScript | The fictional sample request, the sample results, and the sentence splitter |
 | `docs/` | Notes | The data shape and traceability chain |
+
+## Refinement workflow (Definition of Ready)
+
+The analysis is reviewed in order, like backlog refinement. Each stage stays view-only until the stage before it is done, and a **Next step** box always says what to do.
+
+| Stage | Done when | Locks until done |
+|---|---|---|
+| 1. Requirements | Every requirement approved or rejected | Stage 2 actions |
+| 2. Stakeholders | Every stakeholder confirmed or removed, including the AI's inferred ones | Stage 3 actions |
+| 3. Open questions | Every question **answered** (stakeholder's answer recorded), **assumed** (assumption noted) or **parked** (still open) | Stage 4 actions |
+| 4. Story & criteria | User story and every criterion decided. A criterion can only be approved if its requirement is approved and none of its questions is parked | Test case button |
+| 5. Draft test case (optional) | Only for an approved, unblocked criterion | none |
+
+The **Definition of Ready** checklist also lists parked questions and approved requirements that have no approved criterion yet (coverage gaps). If something upstream changes after approval, for example a requirement is returned to draft, the affected criteria are flagged for re-review and their test case button is hidden.
+
+For live demos, each stage has an **Approve remaining** shortcut. Items marked this way carry a **Bulk** label, so the review record stays honest.
 
 ## Optional step: draft test case
 

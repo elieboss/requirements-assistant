@@ -7,6 +7,7 @@ import SourcePanel from "./components/SourcePanel.jsx";
 import ResultsPanel from "./components/ResultsPanel.jsx";
 import { findItem, tabForId } from "./lib/trace.js";
 import { analyzeRequest, draftTestCase } from "./lib/api.js";
+import { criterionBlockers, stageLock } from "./lib/workflow.js";
 
 export default function App() {
   const [requestText, setRequestText] = useState(sampleRequest.body);
@@ -53,7 +54,40 @@ export default function App() {
   }
 
   function updateItem(listName, id, changes) {
-    setResults((r) => ({ ...r, [listName]: r[listName].map((it) => (it.id === id ? { ...it, ...changes } : it)) }));
+    setResults((r) =>
+      listName === "userStory"
+        ? { ...r, userStory: { ...r.userStory, ...changes } }
+        : { ...r, [listName]: r[listName].map((it) => (it.id === id ? { ...it, ...changes } : it)) }
+    );
+  }
+
+  // "Approve remaining" on one stage. Every item it touches is labelled Bulk.
+  function bulkMark(tabKey, ids) {
+    const pick = (it) => ids.includes(it.id);
+    setResults((r) => {
+      switch (tabKey) {
+        case "requirements":
+          return { ...r, requirements: r.requirements.map((it) => (pick(it) ? { ...it, status: "approved", bulk: true } : it)) };
+        case "stakeholders":
+          return { ...r, stakeholders: r.stakeholders.map((it) => (pick(it) ? { ...it, status: "approved", bulk: true } : it)) };
+        case "questions":
+          return {
+            ...r,
+            openQuestions: r.openQuestions.map((q) => {
+              if (!pick(q)) return q;
+              const who = q.askStakeholderIds.map((id) => r.stakeholders.find((s) => s.id === id)?.role).filter(Boolean);
+              const note = `Assumed for now; confirm with ${who.length ? who.join(" and ") : "the requester"}.`;
+              return { ...q, resolution: "assumption", note, bulk: true };
+            }),
+          };
+        case "criteria":
+          return {
+            ...r,
+            userStory: r.userStory && pick(r.userStory) ? { ...r.userStory, status: "approved", bulk: true } : r.userStory,
+            acceptanceCriteria: r.acceptanceCriteria.map((it) => (pick(it) ? { ...it, status: "approved", bulk: true } : it)),
+          };
+      }
+    });
   }
 
   function setTestCase(acId, testCase) {
@@ -65,6 +99,10 @@ export default function App() {
     const criterion = results.acceptanceCriteria.find((ac) => ac.id === acId);
     const requirement = results.requirements.find((r) => r.id === criterion.requirementId);
     if (!requirement) throw new Error("This criterion is not linked to a known requirement, so it can't be traced.");
+    const blockers = criterionBlockers(results, criterion);
+    if (criterion.status !== "approved" || blockers.length) {
+      throw new Error(`This criterion isn't ready for test design. ${blockers.join(" ")}`);
+    }
     const payload = {
       criterion: { id: criterion.id, given: criterion.given, when: criterion.when, then: criterion.then },
       requirement: { id: requirement.id, statement: requirement.statement },
@@ -107,6 +145,8 @@ export default function App() {
 
   const ctx = {
     updateItem,
+    bulkMark,
+    lock: (stageKey) => stageLock(results, stageKey),
     setTestCase,
     generateTestCase,
     onNavigate: navigate,
@@ -123,7 +163,7 @@ export default function App() {
       <header className="app-header">
         <div>
           <h1>Requirements Assistant</h1>
-          <p className="tagline">Turns a business request into draft requirements, stakeholders, open questions and acceptance criteria, each traced to its source sentence.</p>
+          <p className="tagline">Turns a business request into draft requirements, stakeholders, open questions, a user story and acceptance criteria, each traced to its source sentence, then guides the analyst through review stage by stage.</p>
         </div>
         <span className="fictional-flag">Fictional data · demo only</span>
       </header>

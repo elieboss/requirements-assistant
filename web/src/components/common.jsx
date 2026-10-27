@@ -42,17 +42,27 @@ export function LinkChips({ label, ids, onNavigate, warn = false }) {
   );
 }
 
-export function StatusBadge({ status = "draft", edited }) {
-  const text = { draft: "Draft · needs review", approved: "Approved by analyst", rejected: "Rejected by analyst" }[status];
+export function StatusBadge({ status = "draft", edited, bulk, labels = {} }) {
+  const text = {
+    draft: "Draft · needs review",
+    approved: labels.approved ?? "Approved by analyst",
+    rejected: labels.rejected ?? "Rejected by analyst",
+  }[status];
   return (
     <span className="badges">
       <span className={`badge badge-${status}`}>{text}</span>
+      {bulk && status !== "draft" && <span className="badge badge-bulk" title="Marked in bulk with 'Approve remaining'">Bulk</span>}
       {edited && <span className="badge badge-edited">Edited</span>}
     </span>
   );
 }
 
-export function ReviewActions({ status, editing, canEdit = true, onApprove, onReject, onReset, onEdit, onSave, onCancel }) {
+// Approve / Edit / Reject for one item.
+// `locked` disables everything (an earlier stage isn't finished); `approveBlockers` disables only Approve.
+export function ReviewActions({
+  status, editing, canEdit = true, locked = null, approveBlockers = [], labels = {},
+  onApprove, onReject, onReset, onEdit, onSave, onCancel,
+}) {
   const stop = (fn) => (e) => {
     e.stopPropagation();
     fn();
@@ -65,18 +75,30 @@ export function ReviewActions({ status, editing, canEdit = true, onApprove, onRe
       </div>
     );
   }
-  return (
-    <div className="actions">
-      {status === "draft" ? (
-        <>
-          <button className="btn btn-primary" onClick={stop(onApprove)}>Approve</button>
-          {canEdit && <button className="btn" onClick={stop(onEdit)}>Edit</button>}
-          <button className="btn btn-quiet" onClick={stop(onReject)}>Reject</button>
-        </>
-      ) : (
+  if (status !== "draft") {
+    return (
+      <div className="actions">
         <button className="btn btn-quiet" onClick={stop(onReset)}>Return to draft</button>
+      </div>
+    );
+  }
+  const blockers = locked ? [locked] : approveBlockers;
+  return (
+    <>
+      <div className="actions">
+        <button className="btn btn-primary" onClick={stop(onApprove)} disabled={blockers.length > 0}>
+          {labels.approve ?? "Approve"}
+        </button>
+        {canEdit && <button className="btn" onClick={stop(onEdit)} disabled={!!locked}>Edit</button>}
+        <button className="btn btn-quiet" onClick={stop(onReject)} disabled={!!locked}>{labels.reject ?? "Reject"}</button>
+      </div>
+      {blockers.length > 0 && (
+        <p className="lock-reason">
+          <span aria-hidden="true">🔒 </span>
+          {locked ?? `Can't approve yet: ${blockers.join(" ")}`}
+        </p>
       )}
-    </div>
+    </>
   );
 }
 

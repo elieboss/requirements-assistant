@@ -12,16 +12,24 @@ function prefixOf(id) {
 }
 
 export function tabForId(id) {
+  if (id.startsWith("STORY-")) return "criteria";
   return LISTS[prefixOf(id)]?.[1] ?? "requirements";
 }
 
 export function findItem(results, id) {
+  if (results?.userStory?.id === id) return results.userStory;
   const prefix = results && prefixOf(id);
   return prefix ? results[LISTS[prefix][0]].find((item) => item.id === id) : undefined;
 }
 
 export function allItems(results) {
-  return [...results.requirements, ...results.stakeholders, ...results.openQuestions, ...results.acceptanceCriteria];
+  return [
+    ...results.requirements,
+    ...results.stakeholders,
+    ...results.openQuestions,
+    ...(results.userStory ? [results.userStory] : []),
+    ...results.acceptanceCriteria,
+  ];
 }
 
 export function itemsCitingSentence(results, sentenceId) {
