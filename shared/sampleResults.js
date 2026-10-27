@@ -9,12 +9,26 @@ export const sampleResults = {
     "Client Services wants customers alerted when their linked bank account is added, changed, or removed, " +
     "with an easy way to report unauthorized changes, a hold on large withdrawals to new accounts, and a compliance record of alerts.",
 
-  userStory: {
-    id: "STORY-1", status: "draft", sourceSentenceIds: ["S1", "S2", "S5"],
-    asA: "brokerage customer",
-    iWant: "to be alerted whenever the bank account linked to my account is added, changed, or removed",
-    soThat: "I can report a change I did not make before money is moved",
-  },
+  // The request is the epic; it splits into one story per user and need.
+  // Constraints (REQ-8, the deadline) apply to the whole epic rather than to one story.
+  userStories: [
+    { id: "STORY-1", status: "draft", requirementIds: ["REQ-1", "REQ-2", "REQ-3", "REQ-7"], sourceSentenceIds: ["S2", "S3", "S4"],
+      asA: "brokerage customer",
+      iWant: "an alert whenever my linked bank account is added, changed, or removed",
+      soThat: "I know about the change right away" },
+    { id: "STORY-2", status: "draft", requirementIds: ["REQ-4"], sourceSentenceIds: ["S5"],
+      asA: "brokerage customer",
+      iWant: "to report a bank account change I did not make",
+      soThat: "the fraud team can stop it quickly" },
+    { id: "STORY-3", status: "draft", requirementIds: ["REQ-5"], sourceSentenceIds: ["S6"],
+      asA: "brokerage customer",
+      iWant: "large withdrawals to a newly added bank account held for a short period",
+      soThat: "my money is protected if someone else added that account" },
+    { id: "STORY-4", status: "draft", requirementIds: ["REQ-6"], sourceSentenceIds: ["S7"],
+      asA: "compliance officer",
+      iWant: "a record of every bank account alert sent",
+      soThat: "we can show what each customer was told and when" },
+  ],
 
   requirements: [
     { id: "REQ-1", type: "functional", status: "draft", sourceSentenceIds: ["S2"],

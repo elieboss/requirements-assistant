@@ -24,7 +24,11 @@ export function validateAnalysis(raw, sentences) {
     return { ...item, sourceSentenceIds, ...(unsupported && { unsupported: true }) };
   }
 
-  const userStory = raw.userStory ? { ...checkSources({ ...raw.userStory, id: "STORY-1" }), status: "draft" } : undefined;
+  const userStories = raw.userStories.map((st) => ({
+    ...checkSources(st),
+    requirementIds: keep(st, "requirementIds", reqIds),
+    status: "draft",
+  }));
   const requirements = raw.requirements.map((r) => ({ ...checkSources(r), status: "draft" }));
   const stakeholders = raw.stakeholders.map((s) => ({ ...checkSources(s), status: "draft" }));
   const openQuestions = raw.openQuestions.map((q) => ({
@@ -41,13 +45,13 @@ export function validateAnalysis(raw, sentences) {
     return checked;
   });
 
-  const itemCount = (userStory ? 1 : 0) + requirements.length + stakeholders.length + openQuestions.length + acceptanceCriteria.length;
+  const itemCount = userStories.length + requirements.length + stakeholders.length + openQuestions.length + acceptanceCriteria.length;
 
   return {
     status: "draft",
     generatedBy: "ai",
     summary: raw.summary,
-    userStory,
+    userStories,
     requirements,
     stakeholders,
     openQuestions,

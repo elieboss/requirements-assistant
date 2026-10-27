@@ -93,10 +93,7 @@ export function ReviewActions({
         <button className="btn btn-quiet" onClick={stop(onReject)} disabled={!!locked}>{labels.reject ?? "Reject"}</button>
       </div>
       {blockers.length > 0 && (
-        <p className="lock-reason">
-          <span aria-hidden="true">🔒 </span>
-          {locked ?? `Can't approve yet: ${blockers.join(" ")}`}
-        </p>
+        <p className="lock-reason">🔒 {locked ?? `Blocked: ${blockers.join(", ")}`}</p>
       )}
     </>
   );

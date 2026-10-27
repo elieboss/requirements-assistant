@@ -5,6 +5,7 @@ const LISTS = {
   "STK-": ["stakeholders", "stakeholders"],
   "Q-": ["openQuestions", "questions"],
   "AC-": ["acceptanceCriteria", "criteria"],
+  "STORY-": ["userStories", "criteria"],
 };
 
 function prefixOf(id) {
@@ -12,12 +13,10 @@ function prefixOf(id) {
 }
 
 export function tabForId(id) {
-  if (id.startsWith("STORY-")) return "criteria";
   return LISTS[prefixOf(id)]?.[1] ?? "requirements";
 }
 
 export function findItem(results, id) {
-  if (results?.userStory?.id === id) return results.userStory;
   const prefix = results && prefixOf(id);
   return prefix ? results[LISTS[prefix][0]].find((item) => item.id === id) : undefined;
 }
@@ -27,7 +26,7 @@ export function allItems(results) {
     ...results.requirements,
     ...results.stakeholders,
     ...results.openQuestions,
-    ...(results.userStory ? [results.userStory] : []),
+    ...results.userStories,
     ...results.acceptanceCriteria,
   ];
 }
@@ -50,4 +49,8 @@ export function criteriaForRequirement(results, reqId) {
 
 export function questionsForStakeholder(results, stkId) {
   return results.openQuestions.filter((q) => q.askStakeholderIds.includes(stkId));
+}
+
+export function storyForRequirement(results, reqId) {
+  return results.userStories.find((st) => st.requirementIds.includes(reqId));
 }

@@ -1,50 +1,61 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LinkChips, ReviewActions, SentenceChips, StatusBadge, WithTbd } from "./common.jsx";
 import TestCasePanel from "./TestCasePanel.jsx";
 import { criteriaForRequirement, questionsForRequirement, questionsForStakeholder } from "../lib/trace.js";
-import { criterionBlockers, isResolved } from "../lib/workflow.js";
+import { criterionBlockers, isDecided, isResolved } from "../lib/workflow.js";
 
-function Card({ id, selected, linked, status, unsupported, onSelect, children }) {
-  const cls = ["card", selected && "is-selected", linked && "is-linked", status && `is-${status}`].filter(Boolean).join(" ");
+// A one-line card that expands on click. The next item to review opens by itself,
+// and a card folds away once it has been decided, so review flows item by item.
+function Card({ item, title, tag, tagKind, badge, isNext, keepOpenWhenDecided, ctx, children }) {
+  const { selected, linked } = ctx.cardState(item);
+  const [open, setOpen] = useState(isNext);
+  const decided = isDecided(item) || Boolean(item.resolution);
+  const wasDecided = useRef(decided);
+
+  useEffect(() => { if (selected || isNext) setOpen(true); }, [selected, isNext]);
+  useEffect(() => {
+    if (decided && !wasDecided.current && !keepOpenWhenDecided) setOpen(false);
+    wasDecided.current = decided;
+  }, [decided, keepOpenWhenDecided]);
+
+  const cls = ["card", open && "is-open", selected && "is-selected", linked && "is-linked", item.status && `is-${item.status}`]
+    .filter(Boolean).join(" ");
   return (
-    <article id={`card-${id}`} className={cls} onClick={() => onSelect(id)}>
-      {children}
-      {unsupported && <p className="unsupported">Not traced: no valid source in the request. Verify before using.</p>}
+    <article id={`card-${item.id}`} className={cls}>
+      <button className="card-toggle" aria-expanded={open} onClick={() => { if (!open) ctx.onSelect(item.id); setOpen(!open); }}>
+        <span className="chev" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span className="item-id">{item.id}</span>
+        {tag && <span className={`tag tag-${tagKind ?? tag}`}>{tag}</span>}
+        <span className="card-title">{title}</span>
+        {item.unsupported && <span className="badge badge-rejected">Not traced</span>}
+        {badge}
+      </button>
+      {open && (
+        <div className="card-body" onClick={() => ctx.onSelect(item.id)}>
+          {children}
+          {item.unsupported && <p className="unsupported">No valid source in the request. Verify before using.</p>}
+        </div>
+      )}
     </article>
-  );
-}
-
-function CardHead({ id, tag, tagKind, children }) {
-  return (
-    <header className="card-head">
-      <span className="item-id">{id}</span>
-      {tag && <span className={`tag tag-${tagKind ?? tag}`}>{tag}</span>}
-      <span className="spacer" />
-      {children}
-    </header>
   );
 }
 
 const stopClick = (e) => e.stopPropagation();
 
-export function RequirementCard({ item, results, ctx }) {
+export function RequirementCard({ item, results, ctx, isNext }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.statement);
   const update = (changes) => ctx.updateItem("requirements", item.id, changes);
 
   return (
-    <Card id={item.id} {...ctx.cardState(item)} status={item.status} unsupported={item.unsupported} onSelect={ctx.onSelect}>
-      <CardHead id={item.id} tag={item.type}>
-        <StatusBadge status={item.status} edited={item.edited} bulk={item.bulk} />
-      </CardHead>
-      {editing ? (
+    <Card item={item} ctx={ctx} isNext={isNext} title={item.statement} tag={item.type}
+      badge={<StatusBadge status={item.status} edited={item.edited} bulk={item.bulk} />}>
+      {editing && (
         <textarea className="edit-box" value={draft} onClick={stopClick} onChange={(e) => setDraft(e.target.value)} rows={3} />
-      ) : (
-        <p className="statement">{item.statement}</p>
       )}
       <div className="trace-row">
         <SentenceChips ids={item.sourceSentenceIds} onSelectSentence={ctx.onSelectSentence} />
-        <LinkChips label="Open questions" ids={questionsForRequirement(results, item.id).map((q) => q.id)} onNavigate={ctx.onNavigate} warn />
+        <LinkChips label="Questions" ids={questionsForRequirement(results, item.id).map((q) => q.id)} onNavigate={ctx.onNavigate} warn />
         <LinkChips label="Criteria" ids={criteriaForRequirement(results, item.id).map((a) => a.id)} onNavigate={ctx.onNavigate} />
       </div>
       <ReviewActions
@@ -62,18 +73,12 @@ export function RequirementCard({ item, results, ctx }) {
   );
 }
 
-export function StakeholderCard({ item, results, ctx }) {
+export function StakeholderCard({ item, results, ctx, isNext }) {
   const update = (changes) => ctx.updateItem("stakeholders", item.id, changes);
   return (
-    <Card id={item.id} {...ctx.cardState(item)} status={item.status} unsupported={item.unsupported} onSelect={ctx.onSelect}>
-      <CardHead
-        id={item.id}
-        tag={item.inferred ? "inferred · confirm" : "named in request"}
-        tagKind={item.inferred ? "inferred" : "named"}
-      >
-        <StatusBadge status={item.status} bulk={item.bulk} labels={{ approved: "Confirmed by analyst", rejected: "Removed by analyst" }} />
-      </CardHead>
-      <p className="statement"><strong>{item.role}</strong></p>
+    <Card item={item} ctx={ctx} isNext={isNext} title={item.role}
+      tag={item.inferred ? "inferred" : "named"} tagKind={item.inferred ? "inferred" : "named"}
+      badge={<StatusBadge status={item.status} bulk={item.bulk} labels={{ approved: "Confirmed", rejected: "Removed" }} />}>
       <p className="detail">{item.interest}</p>
       <div className="trace-row">
         <SentenceChips ids={item.sourceSentenceIds} onSelectSentence={ctx.onSelectSentence} />
@@ -93,20 +98,17 @@ export function StakeholderCard({ item, results, ctx }) {
 }
 
 const RESOLUTIONS = {
-  answered: { label: "Answered", prompt: "What did the stakeholder say?" },
-  assumption: { label: "Assumption", prompt: "What are you assuming for now?" },
+  answered: { label: "Answered", prompt: "Stakeholder's answer" },
+  assumption: { label: "Assumption", prompt: "What you're assuming" },
   parked: { label: "Parked", prompt: null },
 };
 
-export function QuestionCard({ item, results, ctx }) {
+export function QuestionCard({ item, results, ctx, isNext }) {
   const [choosing, setChoosing] = useState(null); // "answered" | "assumption" while typing a note
   const [note, setNote] = useState("");
   const update = (changes) => ctx.updateItem("openQuestions", item.id, changes);
   const locked = ctx.lock("questions");
-  const askRoles = item.askStakeholderIds
-    .map((id) => results.stakeholders.find((s) => s.id === id)?.role)
-    .filter(Boolean)
-    .join("; ");
+  const askRoles = item.askStakeholderIds.map((id) => results.stakeholders.find((s) => s.id === id)?.role).filter(Boolean);
   const blocks = results.acceptanceCriteria.filter((ac) => ac.dependsOnQuestionIds.includes(item.id)).map((ac) => ac.id);
 
   function start(kind) {
@@ -115,31 +117,25 @@ export function QuestionCard({ item, results, ctx }) {
     setChoosing(kind);
   }
 
+  const badge = item.resolution ? (
+    <span className="badges">
+      <span className={`badge badge-res-${item.resolution}`}>{RESOLUTIONS[item.resolution].label}</span>
+      {item.bulk && <span className="badge badge-bulk">Bulk</span>}
+    </span>
+  ) : (
+    <span className="badge badge-draft">Open</span>
+  );
+
   return (
-    <Card id={item.id} {...ctx.cardState(item)} unsupported={item.unsupported} onSelect={ctx.onSelect}>
-      <CardHead id={item.id} tag={item.issue}>
-        {item.resolution ? (
-          <span className="badges">
-            <span className={`badge badge-res-${item.resolution}`}>{RESOLUTIONS[item.resolution].label}</span>
-            {item.bulk && <span className="badge badge-bulk">Bulk</span>}
-          </span>
-        ) : (
-          <span className="badge badge-draft">Open · needs an outcome</span>
-        )}
-      </CardHead>
-      <p className="statement">{item.question}</p>
-      {askRoles && <p className="detail">Ask: {askRoles}</p>}
+    <Card item={item} ctx={ctx} isNext={isNext} title={item.question} tag={item.issue} badge={badge}>
+      {askRoles.length > 0 && <p className="detail">Ask: {askRoles.join(" · ")}</p>}
       {item.resolution && item.resolution !== "parked" && (
         <p className="resolution-note"><strong>{RESOLUTIONS[item.resolution].label}:</strong> {item.note}</p>
-      )}
-      {item.resolution === "parked" && blocks.length > 0 && (
-        <p className="warning">Parked. {blocks.join(", ")} can't be approved until this is answered or assumed.</p>
       )}
       <div className="trace-row">
         <SentenceChips ids={item.sourceSentenceIds} onSelectSentence={ctx.onSelectSentence} />
         <LinkChips label="Affects" ids={item.relatedRequirementIds} onNavigate={ctx.onNavigate} />
-        <LinkChips label="Blocks" ids={blocks} onNavigate={ctx.onNavigate} warn={!isResolved(item)} />
-        <LinkChips label="Ask" ids={item.askStakeholderIds} onNavigate={ctx.onNavigate} />
+        <LinkChips label={item.resolution === "parked" ? "Blocking" : "Blocks"} ids={blocks} onNavigate={ctx.onNavigate} warn={!isResolved(item)} />
       </div>
 
       {choosing ? (
@@ -152,42 +148,47 @@ export function QuestionCard({ item, results, ctx }) {
               disabled={!note.trim()}
               onClick={() => { update({ resolution: choosing, note: note.trim(), bulk: false }); setChoosing(null); }}
             >
-              Save {RESOLUTIONS[choosing].label.toLowerCase()}
+              Save
             </button>
             <button className="btn" onClick={() => setChoosing(null)}>Cancel</button>
           </div>
         </div>
+      ) : item.resolution === "parked" ? (
+        <div className="actions" onClick={stopClick}>
+          <button className="btn btn-primary" onClick={() => start("answered")}>Answer</button>
+          <button className="btn" onClick={() => start("assumption")}>Assume</button>
+          <button className="btn btn-quiet" onClick={() => update({ resolution: null, note: "", bulk: false })}>Reopen</button>
+        </div>
       ) : item.resolution ? (
         <div className="actions">
           <button className="btn btn-quiet" onClick={(e) => { stopClick(e); update({ resolution: null, note: "", bulk: false }); }}>
-            Change outcome
+            Reopen
           </button>
         </div>
       ) : (
         <>
           <div className="actions" onClick={stopClick}>
-            <button className="btn btn-primary" disabled={!!locked} onClick={() => start("answered")}>Record answer</button>
-            <button className="btn" disabled={!!locked} onClick={() => start("assumption")}>Note assumption</button>
+            <button className="btn btn-primary" disabled={!!locked} onClick={() => start("answered")}>Answer</button>
+            <button className="btn" disabled={!!locked} onClick={() => start("assumption")}>Assume</button>
             <button className="btn btn-quiet" disabled={!!locked} onClick={() => start("parked")}>Park</button>
           </div>
-          {locked && <p className="lock-reason"><span aria-hidden="true">🔒 </span>{locked}</p>}
+          {locked && <p className="lock-reason">🔒 {locked}</p>}
         </>
       )}
     </Card>
   );
 }
 
-export function UserStoryCard({ item, ctx }) {
+export function UserStoryCard({ item, ctx, isNext }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ asA: item.asA, iWant: item.iWant, soThat: item.soThat });
-  const update = (changes) => ctx.updateItem("userStory", item.id, changes);
+  const update = (changes) => ctx.updateItem("userStories", item.id, changes);
   const fields = [["asA", "As a"], ["iWant", "I want"], ["soThat", "so that"]];
 
   return (
-    <Card id={item.id} {...ctx.cardState(item)} status={item.status} unsupported={item.unsupported} onSelect={ctx.onSelect}>
-      <CardHead id={item.id} tag="user story" tagKind="story">
-        <StatusBadge status={item.status} edited={item.edited} bulk={item.bulk} />
-      </CardHead>
+    <Card item={item} ctx={ctx} isNext={isNext} tag="story" tagKind="story"
+      title={<><strong>As a</strong> {item.asA}, <strong>I want</strong> {item.iWant}</>}
+      badge={<StatusBadge status={item.status} edited={item.edited} bulk={item.bulk} />}>
       {editing ? (
         <div className="gwt-edit">
           {fields.map(([k, label]) => (
@@ -198,12 +199,11 @@ export function UserStoryCard({ item, ctx }) {
           ))}
         </div>
       ) : (
-        <p className="story">
-          <strong>As a</strong> {item.asA}, <strong>I want</strong> {item.iWant}, <strong>so that</strong> {item.soThat}.
-        </p>
+        <p className="story"><strong>so that</strong> {item.soThat}.</p>
       )}
       <div className="trace-row">
         <SentenceChips ids={item.sourceSentenceIds} onSelectSentence={ctx.onSelectSentence} />
+        <LinkChips label="Covers" ids={item.requirementIds} onNavigate={ctx.onNavigate} />
       </div>
       <ReviewActions
         status={item.status}
@@ -220,7 +220,7 @@ export function UserStoryCard({ item, ctx }) {
   );
 }
 
-export function CriterionCard({ item, results, ctx }) {
+export function CriterionCard({ item, results, ctx, isNext }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ given: item.given, when: item.when, then: item.then });
   const [generating, setGenerating] = useState(false);
@@ -231,10 +231,8 @@ export function CriterionCard({ item, results, ctx }) {
   const locked = ctx.lock("criteria");
   const blockers = criterionBlockers(results, item).filter((r) => r !== locked);
   const questions = item.dependsOnQuestionIds.map((id) => results.openQuestions.find((q) => q.id === id)).filter(Boolean);
-  const openDeps = questions.filter((q) => !isResolved(q)).map((q) => q.id);
-  const resolvedDeps = questions.filter(isResolved).map((q) => q.id);
   const text = `${item.given} ${item.when} ${item.then}`;
-  const placeholdersToUpdate = questions.filter((q) => q.resolution === "answered" && text.includes(`[TBD per ${q.id}]`));
+  const placeholders = questions.filter((q) => q.resolution === "answered" && text.includes(`[TBD per ${q.id}]`));
   const readyForTest = item.status === "approved" && !locked && blockers.length === 0;
 
   async function generate(e) {
@@ -251,10 +249,9 @@ export function CriterionCard({ item, results, ctx }) {
   }
 
   return (
-    <Card id={item.id} {...ctx.cardState(item)} status={item.status} unsupported={item.unsupported} onSelect={ctx.onSelect}>
-      <CardHead id={item.id} tag="given / when / then" tagKind="gwt">
-        <StatusBadge status={item.status} edited={item.edited} bulk={item.bulk} />
-      </CardHead>
+    <Card item={item} ctx={ctx} isNext={isNext} keepOpenWhenDecided tag="GWT" tagKind="gwt"
+      title={<WithTbd text={`Then ${item.then}`} />}
+      badge={<StatusBadge status={item.status} edited={item.edited} bulk={item.bulk} />}>
       {editing ? (
         <div className="gwt-edit">
           {["given", "when", "then"].map((k) => (
@@ -274,16 +271,13 @@ export function CriterionCard({ item, results, ctx }) {
       <div className="trace-row">
         <SentenceChips ids={item.sourceSentenceIds} onSelectSentence={ctx.onSelectSentence} />
         <LinkChips label="Verifies" ids={[item.requirementId]} onNavigate={ctx.onNavigate} />
-        <LinkChips label="Blocked by" ids={openDeps} onNavigate={ctx.onNavigate} warn />
-        <LinkChips label="Resolved" ids={resolvedDeps} onNavigate={ctx.onNavigate} />
+        <LinkChips label="Depends on" ids={item.dependsOnQuestionIds} onNavigate={ctx.onNavigate} warn={questions.some((q) => !isResolved(q))} />
       </div>
-      {placeholdersToUpdate.map((q) => (
-        <p key={q.id} className="warning">
-          {q.id} is answered ("{q.note}"). Edit this criterion to replace [TBD per {q.id}] with the agreed value.
-        </p>
+      {placeholders.map((q) => (
+        <p key={q.id} className="warning">{q.id} answered: “{q.note}”. Edit to replace [TBD per {q.id}].</p>
       ))}
       {item.status === "approved" && blockers.length > 0 && (
-        <p className="unsupported">Approved earlier, but something upstream changed: {blockers.join(" ")} Re-review it.</p>
+        <p className="unsupported">⚠ Re-review: {blockers.join(", ")}.</p>
       )}
       <ReviewActions
         status={item.status}
@@ -300,9 +294,9 @@ export function CriterionCard({ item, results, ctx }) {
       {readyForTest && (
         <div className="next-step">
           <button className="btn" onClick={generate} disabled={generating}>
-            {generating ? "Drafting test case…" : testCase ? "Regenerate draft test case" : "Generate draft test case"}
+            {generating ? "Drafting…" : testCase ? "Regenerate test case" : "Draft a test case"}
           </button>
-          <span className="hint"> Optional: shows how an approved criterion carries forward into testing.</span>
+          <span className="hint">Optional</span>
           {tcError && <p className="notice">{tcError}</p>}
         </div>
       )}

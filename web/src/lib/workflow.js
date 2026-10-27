@@ -1,12 +1,14 @@
 // The refinement workflow: the order an analyst works in, what "done" means for each stage,
 // and which actions stay locked until the earlier stages are done (the Definition of Ready).
 
+import { storyForRequirement } from "./trace.js";
+
 export const STAGES = [
   { key: "requirements", tab: "requirements", label: "Requirements" },
   { key: "stakeholders", tab: "stakeholders", label: "Stakeholders" },
   { key: "questions", tab: "questions", label: "Open questions" },
-  { key: "criteria", tab: "criteria", label: "Story & criteria" },
-  { key: "testcase", tab: "criteria", label: "Draft test case", optional: true },
+  { key: "criteria", tab: "criteria", label: "Stories & criteria" },
+  { key: "testcase", tab: "criteria", label: "Test case", optional: true },
 ];
 
 export const isDecided = (item) => item.status === "approved" || item.status === "rejected";
@@ -22,7 +24,7 @@ function stageCounts(results, key) {
     case "questions":
       return { done: results.openQuestions.filter(hasOutcome).length, total: results.openQuestions.length };
     case "criteria": {
-      const items = [...(results.userStory ? [results.userStory] : []), ...results.acceptanceCriteria];
+      const items = [...results.userStories, ...results.acceptanceCriteria];
       return { done: items.filter(isDecided).length, total: items.length };
     }
     case "testcase":
@@ -41,95 +43,101 @@ export function stageProgress(results) {
   });
 }
 
-// Returns null when the stage's actions are open, or the reason they are locked.
+// Returns null when the stage's actions are open, or a short reason they are locked.
 export function stageLock(results, key) {
   const stages = stageProgress(results);
-  const stage = stages.find((s) => s.key === key);
-  if (stage.unlocked) return null;
+  if (stages.find((s) => s.key === key).unlocked) return null;
   const blocker = stages.find((s) => !s.optional && !s.complete);
-  const left = blocker.total - blocker.done;
-  return `Locked: finish ${stages.indexOf(blocker) + 1}. ${blocker.label} first (${left} left).`;
+  return `Finish ${blocker.label} first`;
 }
 
-// What stands between one acceptance criterion and approval (or test design).
+// Short reasons one acceptance criterion can't be approved (or sent to test design) yet.
 export function criterionBlockers(results, ac) {
   const reasons = [];
   const lock = stageLock(results, "criteria");
   if (lock) reasons.push(lock);
   const requirement = results.requirements.find((r) => r.id === ac.requirementId);
-  if (!requirement) reasons.push("It is not linked to a known requirement.");
-  else if (requirement.status !== "approved") reasons.push(`${requirement.id} is not approved.`);
+  if (!requirement) reasons.push("no linked requirement");
+  else if (requirement.status !== "approved") reasons.push(`${requirement.id} not approved`);
+  const story = requirement && storyForRequirement(results, requirement.id);
+  if (story && story.status !== "approved") reasons.push(`${story.id} not approved`);
   for (const id of ac.dependsOnQuestionIds) {
     const q = results.openQuestions.find((x) => x.id === id);
-    if (q && !isResolved(q)) reasons.push(`${q.id} is ${q.resolution === "parked" ? "parked" : "not resolved"}.`);
+    if (q && !isResolved(q)) reasons.push(`${q.id} ${q.resolution === "parked" ? "parked" : "open"}`);
   }
   return reasons;
 }
 
+// The parked question that blocks the most undecided criteria, if any.
+function topParkedBlocker(results) {
+  const counts = {};
+  for (const ac of results.acceptanceCriteria) {
+    if (isDecided(ac)) continue;
+    for (const id of ac.dependsOnQuestionIds) {
+      const q = results.openQuestions.find((x) => x.id === id);
+      if (q?.resolution === "parked") counts[id] = (counts[id] ?? 0) + 1;
+    }
+  }
+  const [id, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] ?? [];
+  return id ? { id, n } : null;
+}
+
+// One short instruction: what to do now, and where.
 export function nextStep(results) {
   const stages = stageProgress(results);
   const open = stages.find((s) => !s.optional && !s.complete);
-  if (!open && !results.acceptanceCriteria.some((ac) => ac.status === "approved")) {
-    return {
-      ready: false,
-      title: "Not ready: no acceptance criterion is approved.",
-      detail: "Every criterion was rejected. Return one to draft and fix it, or the request has nothing testable yet.",
-      tab: "criteria",
-    };
-  }
+  const approvedCriteria = results.acceptanceCriteria.filter((ac) => ac.status === "approved");
+
   if (!open) {
-    return {
-      ready: true,
-      title: "Ready: this request meets the Definition of Ready.",
-      detail: "Optional next step: open an approved acceptance criterion and generate a draft test case for test design.",
-      tab: "criteria",
-    };
+    return approvedCriteria.length
+      ? { ready: true, title: "Ready for test design", detail: "Optional: draft a test case from an approved criterion.", tab: "criteria" }
+      : { title: "Nothing testable yet", detail: "Every criterion was rejected. Reopen one and fix it.", tab: "criteria" };
   }
   const left = open.total - open.done;
   switch (open.key) {
     case "requirements":
-      return { title: "Next: review the requirements.", tab: open.tab,
-        detail: `${left} of ${open.total} still need a decision. Approve, edit or reject each one against its source sentence.` };
-    case "stakeholders": {
-      const inferred = results.stakeholders.filter((s) => s.inferred && !isDecided(s)).length;
-      return { title: "Next: confirm the stakeholders.", tab: open.tab,
-        detail: `${left} still to confirm or remove${inferred ? `, including ${inferred} inferred by the AI. Check they are really involved` : ""}.` };
-    }
+      return { title: `Review ${left} requirement${left === 1 ? "" : "s"}`, detail: "Check each one against its source sentence.", tab: open.tab };
+    case "stakeholders":
+      return { title: `Confirm ${left} stakeholder${left === 1 ? "" : "s"}`, detail: "Inferred ones need an explicit decision.", tab: open.tab };
     case "questions":
-      return { title: "Next: resolve the open questions.", tab: open.tab,
-        detail: `${left} have no outcome yet. Record the stakeholder's answer, note an assumption, or park it. Parked questions block the criteria that depend on them.` };
+      return { title: `Resolve ${left} question${left === 1 ? "" : "s"}`, detail: "Answer, assume or park each one.", tab: open.tab };
     case "criteria": {
-      if (results.userStory && !isDecided(results.userStory)) {
-        return { title: "Next: review the user story.", tab: open.tab,
-          detail: "Check the story reflects what the requester actually needs, then approve it." };
+      const stories = results.userStories.filter((st) => !isDecided(st)).length;
+      if (stories) return { title: `Review ${stories} user stor${stories === 1 ? "y" : "ies"}`, detail: "Criteria unlock once their story is approved.", tab: open.tab };
+      const pending = results.acceptanceCriteria.filter((ac) => !isDecided(ac));
+      const approvable = pending.filter((ac) => criterionBlockers(results, ac).length === 0);
+      const parked = topParkedBlocker(results);
+      if (!approvable.length && parked) {
+        return {
+          title: `Unblock: resolve ${parked.id}`,
+          detail: `It blocks ${parked.n} criteri${parked.n === 1 ? "on" : "a"}. Answer or assume it, or reject those criteria.`,
+          tab: "questions",
+          targetId: parked.id,
+        };
       }
-      const blocked = results.acceptanceCriteria.filter((ac) => !isDecided(ac) && criterionBlockers(results, ac).length).length;
-      return { title: "Next: review the acceptance criteria.", tab: open.tab,
-        detail: `${left} still need a decision${blocked ? `; ${blocked} are blocked and can only be rejected or fixed upstream` : ""}. Make sure each one has a clear pass or fail result.` };
+      return { title: `Review ${pending.length} criteri${pending.length === 1 ? "on" : "a"}`, detail: "Each needs a clear pass or fail result.", tab: open.tab };
     }
   }
 }
 
-// The Definition of Ready checklist, plus requirements that have no approved criterion yet.
+// The Definition of Ready checklist, plus gaps worth a second look.
 export function readiness(results) {
-  const stages = stageProgress(results);
-  const byKey = Object.fromEntries(stages.map((s) => [s.key, s]));
+  const byKey = Object.fromEntries(stageProgress(results).map((s) => [s.key, s]));
   const approvedCriteria = results.acceptanceCriteria.filter((ac) => ac.status === "approved");
-  const parked = results.openQuestions.filter((q) => q.resolution === "parked");
-  const uncovered = results.requirements
-    .filter((r) => r.status === "approved")
-    .filter((r) => !approvedCriteria.some((ac) => ac.requirementId === r.id))
-    .map((r) => r.id);
+  const approvedReqs = results.requirements.filter((r) => r.status === "approved");
 
   return {
     checklist: [
-      { label: "Every requirement approved or rejected", met: byKey.requirements.complete },
-      { label: "Stakeholders confirmed, including inferred ones", met: byKey.stakeholders.complete },
-      { label: "Every open question answered, assumed or parked", met: byKey.questions.complete },
-      { label: "User story approved", met: !results.userStory || results.userStory.status === "approved" },
-      { label: "At least one testable acceptance criterion approved", met: approvedCriteria.length > 0 },
+      { label: "Requirements reviewed", met: byKey.requirements.complete },
+      { label: "Stakeholders confirmed", met: byKey.stakeholders.complete },
+      { label: "Questions resolved or parked", met: byKey.questions.complete },
+      { label: "User stories approved", met: results.userStories.every((st) => st.status === "approved") },
+      { label: "Criteria reviewed, at least one approved", met: byKey.criteria.complete && approvedCriteria.length > 0 },
     ],
-    parked: parked.map((q) => q.id),
-    uncovered,
+    parked: results.openQuestions.filter((q) => q.resolution === "parked").map((q) => q.id),
+    uncovered: approvedReqs
+      .filter((r) => r.type !== "constraint" && !approvedCriteria.some((ac) => ac.requirementId === r.id))
+      .map((r) => r.id),
+    noStory: approvedReqs.filter((r) => r.type !== "constraint" && !storyForRequirement(results, r.id)).map((r) => r.id),
   };
 }

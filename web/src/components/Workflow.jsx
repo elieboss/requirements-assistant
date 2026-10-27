@@ -33,34 +33,33 @@ export function StageBar({ results, activeTab, onOpen }) {
   );
 }
 
-// "What should I do now?" plus the Definition of Ready checklist.
-export function NextStep({ results, onOpen, onNavigate }) {
+// "What should I do now?" in one line, with the Definition of Ready behind a toggle.
+export function NextStep({ results, onGo, onNavigate }) {
   const step = nextStep(results);
   const ready = readiness(results);
+  const met = ready.checklist.filter((c) => c.met).length;
+  const gaps = [
+    ["Parked", ready.parked],
+    ["No approved criterion", ready.uncovered],
+    ["Not in a story", ready.noStory],
+  ].filter(([, ids]) => ids.length);
+
   return (
     <section className={`next-box${step.ready ? " is-ready" : ""}`} aria-live="polite">
-      <div className="next-main">
-        <p className="next-title">{step.title}</p>
-        <p className="next-detail">{step.detail}</p>
-      </div>
-      <button className="btn btn-primary" onClick={() => onOpen(step.tab)}>Go there</button>
+      <p className="next-line">
+        <strong>{step.title}</strong> <span className="next-detail">{step.detail}</span>
+      </p>
+      <button className="btn btn-primary" onClick={() => onGo(step)}>Go</button>
       <details className="dor">
-        <summary>Definition of Ready ({ready.checklist.filter((c) => c.met).length} of {ready.checklist.length})</summary>
+        <summary>Definition of Ready · {met}/{ready.checklist.length}</summary>
         <ul>
           {ready.checklist.map((c) => (
-            <li key={c.label} className={c.met ? "met" : ""}>
-              <span aria-hidden="true">{c.met ? "✓" : "○"}</span> {c.label}
-            </li>
+            <li key={c.label} className={c.met ? "met" : ""}>{c.met ? "✓" : "○"} {c.label}</li>
           ))}
         </ul>
-        {ready.parked.length > 0 && (
-          <p className="dor-note"><LinkChips label="Parked, still open" ids={ready.parked} onNavigate={onNavigate} warn /></p>
-        )}
-        {ready.uncovered.length > 0 && (
-          <p className="dor-note">
-            <LinkChips label="Approved, but no approved criterion yet" ids={ready.uncovered} onNavigate={onNavigate} warn />
-          </p>
-        )}
+        {gaps.map(([label, ids]) => (
+          <div key={label} className="dor-note"><LinkChips label={label} ids={ids} onNavigate={onNavigate} warn /></div>
+        ))}
       </details>
     </section>
   );
@@ -75,7 +74,7 @@ export function BulkAction({ count, label, confirmText, locked, onConfirm }) {
       {confirming ? (
         <>
           <span>{confirmText}</span>
-          <button className="btn btn-primary" onClick={() => { onConfirm(); setConfirming(false); }}>Yes, mark {count}</button>
+          <button className="btn btn-primary" onClick={() => { onConfirm(); setConfirming(false); }}>Yes</button>
           <button className="btn" onClick={() => setConfirming(false)}>Cancel</button>
         </>
       ) : (

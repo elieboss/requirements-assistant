@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { sampleRequest } from "../../shared/sampleRequest.js";
 import { sampleResults } from "../../shared/sampleResults.js";
 import { sampleTestCase } from "../../shared/sampleTestCase.js";
 import { splitSentences } from "../../shared/sentences.js";
 import SourcePanel from "./components/SourcePanel.jsx";
 import ResultsPanel from "./components/ResultsPanel.jsx";
+import Toast from "./components/Toast.jsx";
 import { findItem, tabForId } from "./lib/trace.js";
 import { analyzeRequest, draftTestCase } from "./lib/api.js";
 import { criterionBlockers, stageLock } from "./lib/workflow.js";
@@ -17,11 +18,19 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [selection, setSelection] = useState(null); // { type: "item" | "sentence", id }
   const [activeTab, setActiveTab] = useState("requirements");
+  const [undo, setUndo] = useState(null); // { message, previous } for the last review action
+
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(null), 6000);
+    return () => clearTimeout(timer);
+  }, [undo]);
 
   const draftSentences = useMemo(() => splitSentences(requestText), [requestText]);
   const isSample = requestText.trim() === sampleRequest.body;
 
   function showResults(sentences, newResults, message = "") {
+    setUndo(null);
     setAnalyzedSentences(sentences);
     setResults(newResults);
     setNotice(message);
@@ -49,27 +58,46 @@ export default function App() {
   }
 
   function editRequest() {
+    setUndo(null);
     setResults(null);
     setSelection(null);
   }
 
+  // Every review action goes through here, so it can be undone from the toast.
+  function commit(message, updater) {
+    setUndo({ message, previous: results });
+    setResults(updater);
+  }
+
+  function describe(listName, id, changes) {
+    if (changes.edited) return `${id} edited`;
+    if ("resolution" in changes) {
+      return `${id} ${{ answered: "answered", assumption: "assumed", parked: "parked" }[changes.resolution] ?? "reopened"}`;
+    }
+    const isStakeholder = listName === "stakeholders";
+    return `${id} ${{
+      approved: isStakeholder ? "confirmed" : "approved",
+      rejected: isStakeholder ? "removed" : "rejected",
+      draft: "reopened",
+    }[changes.status] ?? "updated"}`;
+  }
+
   function updateItem(listName, id, changes) {
-    setResults((r) =>
-      listName === "userStory"
-        ? { ...r, userStory: { ...r.userStory, ...changes } }
-        : { ...r, [listName]: r[listName].map((it) => (it.id === id ? { ...it, ...changes } : it)) }
-    );
+    commit(describe(listName, id, changes), (r) => ({
+      ...r,
+      [listName]: r[listName].map((it) => (it.id === id ? { ...it, ...changes } : it)),
+    }));
   }
 
   // "Approve remaining" on one stage. Every item it touches is labelled Bulk.
   function bulkMark(tabKey, ids) {
     const pick = (it) => ids.includes(it.id);
-    setResults((r) => {
+    const approve = (list) => list.map((it) => (pick(it) ? { ...it, status: "approved", bulk: true } : it));
+    commit(`${ids.length} items marked in bulk`, (r) => {
       switch (tabKey) {
         case "requirements":
-          return { ...r, requirements: r.requirements.map((it) => (pick(it) ? { ...it, status: "approved", bulk: true } : it)) };
         case "stakeholders":
-          return { ...r, stakeholders: r.stakeholders.map((it) => (pick(it) ? { ...it, status: "approved", bulk: true } : it)) };
+          return { ...r, [tabKey]: approve(r[tabKey]) };
         case "questions":
           return {
             ...r,
@@ -81,11 +109,7 @@ export default function App() {
             }),
           };
         case "criteria":
-          return {
-            ...r,
-            userStory: r.userStory && pick(r.userStory) ? { ...r.userStory, status: "approved", bulk: true } : r.userStory,
-            acceptanceCriteria: r.acceptanceCriteria.map((it) => (pick(it) ? { ...it, status: "approved", bulk: true } : it)),
-          };
+          return { ...r, userStories: approve(r.userStories), acceptanceCriteria: approve(r.acceptanceCriteria) };
       }
     });
   }
@@ -133,6 +157,11 @@ export default function App() {
     }
   }
 
+  function goToStep(step) {
+    if (step.targetId) navigate(step.targetId);
+    else setActiveTab(step.tab);
+  }
+
   function navigate(id) {
     setActiveTab(tabForId(id));
     setSelection({ type: "item", id });
@@ -146,6 +175,7 @@ export default function App() {
   const ctx = {
     updateItem,
     bulkMark,
+    goToStep,
     lock: (stageKey) => stageLock(results, stageKey),
     setTestCase,
     generateTestCase,
@@ -163,7 +193,7 @@ export default function App() {
       <header className="app-header">
         <div>
           <h1>Requirements Assistant</h1>
-          <p className="tagline">Turns a business request into draft requirements, stakeholders, open questions, a user story and acceptance criteria, each traced to its source sentence, then guides the analyst through review stage by stage.</p>
+          <p className="tagline">From a vague request to traced, testable requirements, reviewed step by step.</p>
         </div>
         <span className="fictional-flag">Fictional data · demo only</span>
       </header>
@@ -187,6 +217,9 @@ export default function App() {
         />
         <ResultsPanel results={results} activeTab={activeTab} setActiveTab={setActiveTab} ctx={ctx} />
       </main>
+      {undo && (
+        <Toast message={undo.message} onUndo={() => { setResults(undo.previous); setUndo(null); }} onClose={() => setUndo(null)} />
+      )}
     </div>
   );
 }

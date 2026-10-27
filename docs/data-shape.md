@@ -8,7 +8,7 @@ All data is fictional. All analysis output is a **draft for analyst review**.
 Source sentence (S1..Sn)
   └─ Requirement (REQ-n)        cites sentences
        ├─ Open question (Q-n)   cites sentences, links to requirements, names who to ask, records the outcome
-       ├─ User story (STORY-1)  cites sentences
+       ├─ User story (STORY-n)  cites sentences, groups the requirements it covers (the request is the epic)
        └─ Acceptance criterion (AC-n)  links to one requirement, cites sentences, lists blocking questions
             └─ Draft test case (TC-n)   optional step; links to one approved criterion
 Stakeholder (STK-n)             cites sentences; `inferred: true` when implied rather than named
@@ -22,7 +22,7 @@ Stakeholder (STK-n)             cites sentences; `inferred: true` when implied r
 | Requirement | `id`, `statement`, `type` (functional, non-functional, business-rule, compliance, constraint), `sourceSentenceIds`, `status` (draft, approved, rejected) |
 | Stakeholder | `id`, `role`, `interest`, `inferred`, `sourceSentenceIds`, `status` (draft, approved = confirmed, rejected = removed) |
 | Open question | `id`, `question`, `issue` (vague, missing, assumption, constraint), `sourceSentenceIds`, `relatedRequirementIds`, `askStakeholderIds`, `resolution` (answered, assumption, parked), `note` |
-| User story | `id` (STORY-1), `asA`, `iWant`, `soThat`, `sourceSentenceIds`, `status` |
+| User story | `id` (STORY-n), `asA`, `iWant`, `soThat`, `requirementIds`, `sourceSentenceIds`, `status` |
 | Acceptance criterion | `id`, `requirementId`, `given`, `when`, `then`, `sourceSentenceIds`, `dependsOnQuestionIds`, `status` |
 | Test case (Step 5) | `id`, `acceptanceCriterionId`, `requirementId`, `sourceSentenceIds`, `criterionSnapshot`, `title`, `objective`, `preconditions`, `testData`, `steps[{action, expected}]`, `edgeCases[{scenario, why}]`, `coverageGaps`, `assumptions`, `status` |
 
