@@ -5,27 +5,45 @@ import { splitSentences } from "../../shared/sentences.js";
 import SourcePanel from "./components/SourcePanel.jsx";
 import ResultsPanel from "./components/ResultsPanel.jsx";
 import { findItem, tabForId } from "./lib/trace.js";
+import { analyzeRequest } from "./lib/api.js";
 
 export default function App() {
   const [requestText, setRequestText] = useState(sampleRequest.body);
   const [results, setResults] = useState(null);
+  const [analyzedSentences, setAnalyzedSentences] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const [selection, setSelection] = useState(null); // { type: "item" | "sentence", id }
   const [activeTab, setActiveTab] = useState("requirements");
 
-  const sentences = useMemo(() => splitSentences(requestText), [requestText]);
+  const draftSentences = useMemo(() => splitSentences(requestText), [requestText]);
   const isSample = requestText.trim() === sampleRequest.body;
 
-  // Step 2: analysis returns the pre-written sample results. Step 3 moves this behind the server endpoint.
-  function analyze() {
-    if (!isSample) {
-      setNotice("Live analysis of other requests is connected in Step 4. For now, use the sample request.");
-      return;
-    }
-    setResults(structuredClone(sampleResults));
-    setNotice("");
+  function showResults(sentences, newResults, message = "") {
+    setAnalyzedSentences(sentences);
+    setResults(newResults);
+    setNotice(message);
     setSelection(null);
     setActiveTab("requirements");
+  }
+
+  // Sends the request to the Worker. If the server can't be reached during a demo,
+  // the sample request falls back to the bundled sample results, clearly labelled.
+  async function analyze() {
+    setLoading(true);
+    setNotice("");
+    try {
+      const { sentences, results: serverResults } = await analyzeRequest(requestText);
+      showResults(sentences, serverResults);
+    } catch (err) {
+      if (err.message === "offline" && isSample) {
+        showResults(draftSentences, { ...structuredClone(sampleResults), generatedBy: "sample-offline" });
+      } else {
+        setNotice(err.message === "offline" ? "The server can't be reached. Check that the Worker is running and try again." : err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   function editRequest() {
@@ -73,7 +91,8 @@ export default function App() {
           meta={isSample ? sampleRequest : null}
           requestText={requestText}
           setRequestText={(t) => { setRequestText(t); setNotice(""); }}
-          sentences={sentences}
+          sentences={results ? analyzedSentences : draftSentences}
+          loading={loading}
           results={results}
           notice={notice}
           onAnalyze={analyze}

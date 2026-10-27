@@ -23,7 +23,11 @@ export default function ResultsPanel({ results, activeTab, setActiveTab, ctx }) 
   }
 
   const tab = TABS.find((t) => t.key === activeTab);
-  const sourceLabel = results.generatedBy === "sample" ? "pre-written sample results" : "AI";
+  const sourceLabel = {
+    "sample-server": "pre-written sample results, served by the Worker",
+    "sample-offline": "the offline copy of the sample results (the server could not be reached)",
+    ai: "AI",
+  }[results.generatedBy] ?? "pre-written sample results";
 
   return (
     <section className="panel results-panel">

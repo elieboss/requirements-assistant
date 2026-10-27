@@ -4,7 +4,7 @@ import { itemsCitingSentence, requirementsCitingSentence } from "../lib/trace.js
 // Left side: the business request. Before analysis it is an editable text box;
 // after analysis it becomes numbered sentences that highlight when cited.
 export default function SourcePanel({
-  meta, requestText, setRequestText, sentences, results, notice,
+  meta, requestText, setRequestText, sentences, results, notice, loading,
   onAnalyze, onReset, onEdit, highlighted, selectedSentence, onSelectSentence, onNavigate,
 }) {
   function handleUpload(e) {
@@ -37,8 +37,8 @@ export default function SourcePanel({
             rows={14}
           />
           <div className="actions">
-            <button className="btn btn-primary" onClick={onAnalyze} disabled={!requestText.trim()}>
-              Analyze request
+            <button className="btn btn-primary" onClick={onAnalyze} disabled={!requestText.trim() || loading}>
+              {loading ? "Analyzing…" : "Analyze request"}
             </button>
             <label className="btn">
               Upload .txt
@@ -82,6 +82,7 @@ export default function SourcePanel({
           <div className="actions">
             <button className="btn btn-quiet" onClick={onEdit}>Edit request (clears results)</button>
           </div>
+          {notice && <p className="notice">{notice}</p>}
         </>
       )}
     </section>
