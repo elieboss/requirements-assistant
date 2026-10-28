@@ -13,7 +13,9 @@ export const STAGES = [
 
 export const isDecided = (item) => item.status === "approved" || item.status === "rejected";
 export const isResolved = (q) => q.resolution === "answered" || q.resolution === "assumption";
-const hasOutcome = (q) => Boolean(q.resolution);
+// "Asked, waiting" is progress, not an outcome: the question still needs an answer, assumption or park.
+export const hasOutcome = (q) => isResolved(q) || q.resolution === "parked";
+export const isPending = (item) => (item.id.startsWith("Q-") ? !hasOutcome(item) : !isDecided(item));
 
 function stageCounts(results, key) {
   switch (key) {
@@ -63,7 +65,7 @@ export function criterionBlockers(results, ac) {
   if (story && story.status !== "approved") reasons.push(`${story.id} not approved`);
   for (const id of ac.dependsOnQuestionIds) {
     const q = results.openQuestions.find((x) => x.id === id);
-    if (q && !isResolved(q)) reasons.push(`${q.id} ${q.resolution === "parked" ? "parked" : "open"}`);
+    if (q && !isResolved(q)) reasons.push(`${q.id} ${{ parked: "parked", asked: "waiting" }[q.resolution] ?? "open"}`);
   }
   return reasons;
 }
@@ -99,8 +101,13 @@ export function nextStep(results) {
       return { title: `Review ${left} requirement${left === 1 ? "" : "s"}`, detail: "Check each one against its source sentence.", tab: open.tab };
     case "stakeholders":
       return { title: `Confirm ${left} stakeholder${left === 1 ? "" : "s"}`, detail: "Inferred ones need an explicit decision.", tab: open.tab };
-    case "questions":
-      return { title: `Resolve ${left} question${left === 1 ? "" : "s"}`, detail: "Answer, assume or park each one.", tab: open.tab };
+    case "questions": {
+      const waiting = results.openQuestions.filter((q) => q.resolution === "asked").length;
+      if (waiting === left) {
+        return { title: `Waiting on ${waiting} answer${waiting === 1 ? "" : "s"}`, detail: "Record answers as they arrive, or assume or park the rest.", tab: open.tab };
+      }
+      return { title: `Resolve ${left} question${left === 1 ? "" : "s"}`, detail: "Pick an answer, assume or park. Copy a group to ask someone.", tab: open.tab };
+    }
     case "criteria": {
       const stories = results.userStories.filter((st) => !isDecided(st)).length;
       if (stories) return { title: `Review ${stories} user stor${stories === 1 ? "y" : "ies"}`, detail: "Criteria unlock once their story is approved.", tab: open.tab };
@@ -141,3 +148,38 @@ export function readiness(results) {
     noStory: approvedReqs.filter((r) => r.type !== "constraint" && !storyForRequirement(results, r.id)).map((r) => r.id),
   };
 }
+
+// Plain status words used everywhere: Not started, In progress, Waiting, Blocked, Done.
+export const STATUS_COLORS = { "Not started": "gray", "In progress": "blue", Waiting: "violet", Blocked: "orange", Done: "green", Locked: "gray" };
+
+// Status of a group of items (a chunk, or a whole stage).
+export function groupStatus(results, items) {
+  if (!items.length) return "Done";
+  const pending = items.filter(isPending);
+  if (!pending.length) return "Done";
+  const blocked = pending.filter((it) => it.id.startsWith("AC-") && criterionBlockers(results, it).length);
+  if (blocked.length === pending.length) return "Blocked";
+  if (pending.length && pending.every((it) => it.resolution === "asked")) return "Waiting";
+  const touched = items.some((it) => !isPending(it) || it.resolution === "asked" || it.edited);
+  return touched ? "In progress" : "Not started";
+}
+
+export function stageStatus(results, key) {
+  const stage = stageProgress(results).find((s) => s.key === key);
+  if (key === "testcase") return stage.done ? "In progress" : "Not started";
+  if (stage.complete) return "Done";
+  if (!stage.unlocked) return "Locked";
+  const items = { requirements: results.requirements, stakeholders: results.stakeholders, questions: results.openQuestions,
+    criteria: [...results.userStories, ...results.acceptanceCriteria] }[key];
+  return groupStatus(results, items);
+}
+
+// Where the whole request stands.
+export function overallStatus(results) {
+  if (!results) return "Not started";
+  if (nextStep(results).ready) return "Ready for test design";
+  const any = allItemsOf(results).some((it) => !isPending(it) || it.resolution === "asked");
+  return any ? "In refinement" : "Not started";
+}
+
+const allItemsOf = (r) => [...r.requirements, ...r.stakeholders, ...r.openQuestions, ...r.userStories, ...r.acceptanceCriteria];

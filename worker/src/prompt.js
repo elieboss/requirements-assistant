@@ -20,7 +20,8 @@ Stakeholders (IDs STK-1, STK-2, ...)
 
 Open questions (IDs Q-1, Q-2, ...)
 - Raise a question for each vague term, missing detail, unstated assumption, or risky constraint. Set issue to vague, missing, assumption or constraint.
-- Make each question specific enough that one person could answer it in a meeting. Link the requirements it affects and the stakeholders best placed to answer it.
+- Ask about one unknown per question, specific enough that one person could answer it in a meeting. Link the requirements it affects and the stakeholders best placed to answer it, most important first.
+- Offer two to four likely answers in suggestedAnswers, each a short phrase (for example "5 minutes", "$10,000", "Email and text"). They are options for the analyst to pick from, not decisions.
 - Where the request touches them, consider the gaps that matter in financial services: fraud and unauthorized activity, how and when customers are notified, record keeping and retention, actions staff take on a customer's behalf, and what happens when contact details are missing or out of date.
 
 User stories (IDs STORY-1, STORY-2, ...)
@@ -31,7 +32,7 @@ User stories (IDs STORY-1, STORY-2, ...)
 
 Acceptance criteria (IDs AC-1, AC-2, ...)
 - Write Given / When / Then. Each criterion verifies exactly one requirement and has an observable pass or fail result.
-- Where a value depends on an unanswered question, write "[TBD per Q-n]" instead of a number, and list that question in dependsOnQuestionIds.
+- Where a value depends on an unanswered question, write "[TBD per Q-n]" instead of a number, and list that question in dependsOnQuestionIds. Place the placeholder where a suggested answer can replace it word for word, for example "within [TBD per Q-1]", not "within [TBD per Q-1] minutes".
 - Cover the most important requirements, usually four to six criteria.
 
 Summary
@@ -45,30 +46,15 @@ export function buildUserMessage(sentences) {
 }
 
 // The exact shape the response must follow (enforced by the API's structured outputs).
+// Sections are listed in the order Claude writes them, which is the order the screen reports progress.
 const ids = { type: "array", items: { type: "string" } };
 
 export const ANALYSIS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "userStories", "requirements", "stakeholders", "openQuestions", "acceptanceCriteria"],
+  required: ["summary", "requirements", "stakeholders", "openQuestions", "userStories", "acceptanceCriteria"],
   properties: {
     summary: { type: "string" },
-    userStories: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "asA", "iWant", "soThat", "requirementIds", "sourceSentenceIds"],
-        properties: {
-          id: { type: "string" },
-          asA: { type: "string" },
-          iWant: { type: "string" },
-          soThat: { type: "string" },
-          requirementIds: ids,
-          sourceSentenceIds: ids,
-        },
-      },
-    },
     requirements: {
       type: "array",
       items: {
@@ -103,14 +89,31 @@ export const ANALYSIS_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "issue", "question", "sourceSentenceIds", "relatedRequirementIds", "askStakeholderIds"],
+        required: ["id", "issue", "question", "suggestedAnswers", "sourceSentenceIds", "relatedRequirementIds", "askStakeholderIds"],
         properties: {
           id: { type: "string" },
           issue: { type: "string", enum: ["vague", "missing", "assumption", "constraint"] },
           question: { type: "string" },
+          suggestedAnswers: { type: "array", items: { type: "string" } },
           sourceSentenceIds: ids,
           relatedRequirementIds: ids,
           askStakeholderIds: ids,
+        },
+      },
+    },
+    userStories: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "asA", "iWant", "soThat", "requirementIds", "sourceSentenceIds"],
+        properties: {
+          id: { type: "string" },
+          asA: { type: "string" },
+          iWant: { type: "string" },
+          soThat: { type: "string" },
+          requirementIds: ids,
+          sourceSentenceIds: ids,
         },
       },
     },

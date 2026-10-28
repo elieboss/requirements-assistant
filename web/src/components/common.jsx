@@ -1,107 +1,97 @@
-// Small building blocks shared by every results tab.
+import { useState } from "react";
+import { Badge, Button, Group, Mark, Menu, Text, TextInput } from "@mantine/core";
+import { IconChevronDown } from "@tabler/icons-react";
+import { STATUS_COLORS } from "../lib/workflow.js";
 
+// Source sentence chips: click to highlight the sentence in the request.
 export function SentenceChips({ ids, onSelectSentence }) {
+  if (!ids?.length) return null;
   return (
-    <span className="chips">
-      <span className="chips-label">Source</span>
+    <Group gap={4} wrap="wrap">
+      <Text size="xs" c="dimmed">Source</Text>
       {ids.map((id) => (
-        <button
-          key={id}
-          className="chip chip-source"
-          title="Highlight this sentence in the request"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelectSentence(id);
-          }}
-        >
+        <Badge key={id} component="button" variant="light" color="yellow" size="sm" className="chip-btn"
+          onClick={(e) => { e.stopPropagation(); onSelectSentence(id); }}>
           {id}
-        </button>
+        </Badge>
       ))}
-    </span>
+    </Group>
   );
 }
 
+// Links to other items: click to jump there.
 export function LinkChips({ label, ids, onNavigate, warn = false }) {
-  if (!ids.length) return null;
+  if (!ids?.length) return null;
   return (
-    <span className="chips">
-      <span className="chips-label">{label}</span>
+    <Group gap={4} wrap="wrap">
+      <Text size="xs" c="dimmed">{label}</Text>
       {ids.map((id) => (
-        <button
-          key={id}
-          className={`chip chip-link${warn ? " chip-warn" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onNavigate(id);
-          }}
-        >
+        <Badge key={id} component="button" variant="outline" color={warn ? "orange" : "indigo"} size="sm" className="chip-btn"
+          onClick={(e) => { e.stopPropagation(); onNavigate(id); }}>
           {id}
-        </button>
+        </Badge>
       ))}
-    </span>
+    </Group>
   );
 }
 
-export function StatusBadge({ status = "draft", edited, bulk, labels = {} }) {
-  const text = {
-    draft: "Draft · needs review",
-    approved: labels.approved ?? "Approved by analyst",
-    rejected: labels.rejected ?? "Rejected by analyst",
-  }[status];
-  return (
-    <span className="badges">
-      <span className={`badge badge-${status}`}>{text}</span>
-      {bulk && status !== "draft" && <span className="badge badge-bulk" title="Marked in bulk with 'Approve remaining'">Bulk</span>}
-      {edited && <span className="badge badge-edited">Edited</span>}
-    </span>
-  );
+export function StatusPill({ status }) {
+  return <Badge variant="light" color={STATUS_COLORS[status] ?? "gray"} size="sm">{status}</Badge>;
 }
 
-// Approve / Edit / Reject for one item.
-// `locked` disables everything (an earlier stage isn't finished); `approveBlockers` disables only Approve.
-export function ReviewActions({
-  status, editing, canEdit = true, locked = null, approveBlockers = [], labels = {},
-  onApprove, onReject, onReset, onEdit, onSave, onCancel,
-}) {
-  const stop = (fn) => (e) => {
-    e.stopPropagation();
-    fn();
+// Item-level decision badge.
+export function DecisionBadge({ item, labels = {} }) {
+  const map = {
+    draft: ["To review", "yellow"],
+    approved: [labels.approved ?? "Approved", "green"],
+    rejected: [labels.rejected ?? "Rejected", "red"],
   };
-  if (editing) {
-    return (
-      <div className="actions">
-        <button className="btn btn-primary" onClick={stop(onSave)}>Save edit</button>
-        <button className="btn" onClick={stop(onCancel)}>Cancel</button>
-      </div>
-    );
-  }
-  if (status !== "draft") {
-    return (
-      <div className="actions">
-        <button className="btn btn-quiet" onClick={stop(onReset)}>Return to draft</button>
-      </div>
-    );
-  }
-  const blockers = locked ? [locked] : approveBlockers;
+  const [text, color] = map[item.status ?? "draft"];
   return (
-    <>
-      <div className="actions">
-        <button className="btn btn-primary" onClick={stop(onApprove)} disabled={blockers.length > 0}>
-          {labels.approve ?? "Approve"}
-        </button>
-        {canEdit && <button className="btn" onClick={stop(onEdit)} disabled={!!locked}>Edit</button>}
-        <button className="btn btn-quiet" onClick={stop(onReject)} disabled={!!locked}>{labels.reject ?? "Reject"}</button>
-      </div>
-      {blockers.length > 0 && (
-        <p className="lock-reason">🔒 {locked ?? `Blocked: ${blockers.join(", ")}`}</p>
-      )}
-    </>
+    <Group gap={4} wrap="nowrap">
+      <Badge variant="light" color={color} size="sm">{text}{item.raci && item.status === "approved" ? ` · ${item.raci}` : ""}</Badge>
+      {item.bulk && item.status !== "draft" && <Badge variant="outline" color="gray" size="sm">Bulk</Badge>}
+      {item.edited && <Badge variant="outline" color="indigo" size="sm">Edited</Badge>}
+    </Group>
   );
 }
 
-// Shows "[TBD per Q-1]" placeholders in amber so unresolved values stand out.
+// Shows "[TBD per Q-1]" placeholders highlighted so unresolved values stand out.
 export function WithTbd({ text }) {
   return text.split(/(\[TBD[^\]]*\])/).map((part, i) =>
-    part.startsWith("[TBD") ? <mark key={i} className="tbd">{part}</mark> : part
+    part.startsWith("[TBD") ? <Mark key={i} color="orange">{part}</Mark> : part
+  );
+}
+
+const REJECT_REASONS = ["Out of scope", "Duplicate", "Not in the request", "Too vague to keep"];
+
+// Reject with a reason picked from a short list; "Other…" opens a small text box.
+export function RejectMenu({ onReject, disabled, label = "Reject", reasons = REJECT_REASONS }) {
+  const [other, setOther] = useState(null);
+  if (other !== null) {
+    return (
+      <Group gap={6} onClick={(e) => e.stopPropagation()}>
+        <TextInput size="xs" placeholder="Reason" value={other} onChange={(e) => setOther(e.currentTarget.value)} autoFocus />
+        <Button size="xs" color="red" variant="light" disabled={!other.trim()} onClick={() => { onReject(other.trim()); setOther(null); }}>
+          {label}
+        </Button>
+        <Button size="xs" variant="subtle" color="gray" onClick={() => setOther(null)}>Cancel</Button>
+      </Group>
+    );
+  }
+  return (
+    <Menu position="bottom-start" withinPortal>
+      <Menu.Target>
+        <Button size="xs" variant="subtle" color="red" rightSection={<IconChevronDown size={14} />} disabled={disabled}
+          onClick={(e) => e.stopPropagation()}>
+          {label}
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>Why?</Menu.Label>
+        {reasons.map((r) => <Menu.Item key={r} onClick={() => onReject(r)}>{r}</Menu.Item>)}
+        <Menu.Item onClick={() => setOther("")}>Other…</Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   );
 }

@@ -6,14 +6,25 @@ A small demo that helps an analyst turn a vague business request into **draft** 
 
 | Folder | What it is | Its job |
 |---|---|---|
-| `web/` | React app (Vite, plain CSS) | The screen: request on the left, draft analysis on the right, reviewed stage by stage |
+| `web/` | React app (Vite + Mantine components) | The screen: request on the left, draft analysis on the right, reviewed stage by stage in small groups |
+| `web/src/lib/groups.js` | Chunking | Splits each stage into small groups: by story, or by the person to ask |
 | `web/src/lib/workflow.js` | Workflow rules | Stage order, what "done" means, what stays locked, the Definition of Ready |
-| `worker/` | Cloudflare Worker | Serves the app and handles `POST /api/analyze`; the only part that holds the AI key or calls Claude |
+| `worker/` | Cloudflare Worker | Serves the app and handles `POST /api/analyze` (streamed) and `POST /api/testcase`; the only part that holds the AI key or calls Claude |
 | `worker/src/prompt.js` | The analysis instructions | The analyst method the AI follows, plus the exact output shape |
 | `worker/src/validate.js` | Citation check | Removes any citation or link that points at nothing, and flags the item |
 | `worker/src/testCasePrompt.js` | Optional test case step | Turns one approved acceptance criterion into a draft test case for an analyst to review |
 | `shared/` | Plain JavaScript | The fictional sample request, the sample results, and the sentence splitter |
 | `docs/` | Notes | The data shape and traceability chain |
+
+## Using it day to day
+
+- **Live progress.** While Claude drafts, the screen shows each step as it happens (requirements found, stakeholders, questions, stories, criteria, citation check) with real counts, elapsed time and Cancel. The Worker streams these updates as newline-delimited JSON.
+- **Small chunks.** Each stage is split into groups, and one group is open at a time; the next unfinished group opens when one is done. Requirements and criteria are grouped by user story; questions are grouped by **who to ask**, so each group is one conversation.
+- **Plain statuses everywhere.** Request: Not started, In refinement, Ready for test design. Stages and groups: Not started, In progress, Waiting, Blocked, Done (or Locked). Questions: Not asked, Asked · waiting, Answered, Assumed, Parked.
+- **Pick, don't type.** Questions come with 2–4 suggested answers as chips; picking one offers to fill the matching `[TBD per Q-n]` in the criteria, with a preview. Rejections take a reason from a short list. Stakeholders are confirmed as Decides, Consulted or Informed. Typing is only needed for "Other…" and edits.
+- **Copy questions.** Each person's group has a button that copies a ready-to-send message with their questions and marks them Asked · waiting.
+- **Focus mode.** One item at a time with shortcuts: `A` approve, `←` `→` previous/skip, `1`–`4` pick a suggested answer.
+- **Undo and autosave.** Every action shows a notification with Undo. The review is saved in this browser, so a refresh or "New request" can be resumed.
 
 ## Refinement workflow (Definition of Ready)
 

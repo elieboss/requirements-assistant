@@ -11,6 +11,9 @@ import { validateAnalysis } from "./validate.js";
 
 const MAX_REQUEST_CHARS = 6000;
 
+// How to reach Claude: the secret key, and (only in local tests) a stand-in server.
+const connection = (env) => ({ apiKey: env.ANTHROPIC_API_KEY, baseURL: env.ANTHROPIC_BASE_URL });
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -18,7 +21,7 @@ function json(body, status = 200) {
   });
 }
 
-async function analyze(request, env) {
+async function analyze(request, env, ctx) {
   let text;
   try {
     ({ text } = await request.json());
@@ -43,16 +46,37 @@ async function analyze(request, env) {
     return json({ error: "The AI key is not set up on the server, so only the sample request can be analyzed." }, 503);
   }
 
-  try {
-    const raw = await draftAnalysis(env.ANTHROPIC_API_KEY, sentences);
-    return json({ sentences, results: validateAnalysis(raw, sentences) });
-  } catch (error) {
-    const reason = error instanceof AnalysisError ? error.message : "The AI request failed unexpectedly.";
-    console.error("analysis failed:", error);
-    // In a live demo, the sample request still shows a result, clearly labelled as the pre-written fallback.
-    if (isSample) return sampleFallback(reason);
-    return json({ error: `${reason} Your request was not analyzed.` }, 502);
-  }
+  // From here the answer is streamed as newline-delimited JSON: progress lines while Claude writes,
+  // then one final "result" (or "error") line. The browser shows each step as it happens.
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+  const send = (event) => writer.write(encoder.encode(JSON.stringify(event) + "\n")).catch(() => {});
+
+  const work = (async () => {
+    send({ type: "progress", phase: "read", sentenceCount: sentences.length });
+    try {
+      const raw = await draftAnalysis(connection(env), sentences, {
+        signal: request.signal,
+        onProgress: (p) => send({ type: "progress", ...p }),
+      });
+      send({ type: "progress", phase: "checking" });
+      send({ type: "result", sentences, results: validateAnalysis(raw, sentences) });
+    } catch (error) {
+      const reason = error instanceof AnalysisError ? error.message : "The AI request failed unexpectedly.";
+      console.error("analysis failed:", error);
+      // In a live demo, the sample request still shows a result, clearly labelled as the pre-written fallback.
+      if (isSample) send({ type: "result", sentences, results: { ...sampleResults, generatedBy: "sample-fallback", fallbackReason: reason } });
+      else send({ type: "error", error: `${reason} Your request was not analyzed.` });
+    } finally {
+      await writer.close().catch(() => {});
+    }
+  })();
+  ctx.waitUntil(work);
+
+  return new Response(readable, {
+    headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" },
+  });
 }
 
 // Optional step: one approved acceptance criterion in, one draft test case out.
@@ -95,7 +119,7 @@ async function testCase(request, env) {
   }
 
   try {
-    const draft = await draftTestCase(env.ANTHROPIC_API_KEY, { criterion, requirement, sentences, questions });
+    const draft = await draftTestCase(connection(env), { criterion, requirement, sentences, questions });
     return json({ testCase: { ...draft, ...trace, generatedBy: "ai" } });
   } catch (error) {
     const reason = error instanceof AnalysisError ? error.message : "The AI request failed unexpectedly.";
@@ -106,12 +130,12 @@ async function testCase(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/analyze") {
       if (request.method !== "POST") return json({ error: "Use POST." }, 405);
-      return analyze(request, env);
+      return analyze(request, env, ctx);
     }
     if (url.pathname === "/api/testcase") {
       if (request.method !== "POST") return json({ error: "Use POST." }, 405);

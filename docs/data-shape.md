@@ -20,12 +20,12 @@ Stakeholder (STK-n)             cites sentences; `inferred: true` when implied r
 |---|---|
 | Sentence | `id` (S1), `text` — created by code, not by the AI |
 | Requirement | `id`, `statement`, `type` (functional, non-functional, business-rule, compliance, constraint), `sourceSentenceIds`, `status` (draft, approved, rejected) |
-| Stakeholder | `id`, `role`, `interest`, `inferred`, `sourceSentenceIds`, `status` (draft, approved = confirmed, rejected = removed) |
-| Open question | `id`, `question`, `issue` (vague, missing, assumption, constraint), `sourceSentenceIds`, `relatedRequirementIds`, `askStakeholderIds`, `resolution` (answered, assumption, parked), `note` |
+| Stakeholder | `id`, `role`, `interest`, `inferred`, `sourceSentenceIds`, `status` (draft, approved = confirmed, rejected = removed), `raci` (Decides, Consulted, Informed) |
+| Open question | `id`, `question`, `issue` (vague, missing, assumption, constraint), `sourceSentenceIds`, `relatedRequirementIds`, `askStakeholderIds`, `suggestedAnswers`, `resolution` (asked, answered, assumption, parked), `note` |
 | User story | `id` (STORY-n), `asA`, `iWant`, `soThat`, `requirementIds`, `sourceSentenceIds`, `status` |
 | Acceptance criterion | `id`, `requirementId`, `given`, `when`, `then`, `sourceSentenceIds`, `dependsOnQuestionIds`, `status` |
 | Test case (Step 5) | `id`, `acceptanceCriterionId`, `requirementId`, `sourceSentenceIds`, `criterionSnapshot`, `title`, `objective`, `preconditions`, `testData`, `steps[{action, expected}]`, `edgeCases[{scenario, why}]`, `coverageGaps`, `assumptions`, `status` |
 
-Any reviewed item may carry `bulk: true` when it was marked with the Approve remaining shortcut.
+Rejected items carry `rejectReason`. Any reviewed item may carry `bulk: true` when it was marked with the Approve remaining shortcut.
 
 Unknown values inside criteria are written as `[TBD per Q-n]` so a gap is never hidden behind a guessed number.

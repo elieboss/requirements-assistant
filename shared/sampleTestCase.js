@@ -9,7 +9,7 @@ export const sampleTestCase = {
     "A test customer account exists with a verified email address on file.",
     "The customer has alerts turned on with default preferences.",
     "The tester can see the test email inbox and the alert record.",
-    "The agreed alert time is known (currently [TBD per Q-1] minutes).",
+    "The agreed alert time is known (currently [TBD per Q-1]).",
   ],
   testData: [
     "Customer: Test Customer A (fictional), brokerage account ending 4821",
@@ -22,7 +22,7 @@ export const sampleTestCase = {
     { action: "Add the new bank account ending 7310 and save.",
       expected: "A confirmation is shown, and the time of the change is recorded." },
     { action: "Check the inbox for test.customer.a@example.com.",
-      expected: "One alert email arrives within [TBD per Q-1] minutes of the change." },
+      expected: "One alert email arrives within [TBD per Q-1] of the change." },
     { action: "Open the alert email and read its content.",
       expected: "It says a bank account was added, shows only the last 4 digits (7310), and gives the date and time. The full account number does not appear." },
   ],
